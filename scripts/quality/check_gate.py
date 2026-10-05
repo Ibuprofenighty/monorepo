@@ -34,7 +34,7 @@ def verify_targets(makefile: str) -> set[str]:
 def ci_runs(workflow: str) -> tuple[set[str], list[str]]:
     targets: set[str] = set()
     errors: list[str] = []
-    for match in re.finditer(r"(?m)^[ \t]*-[ \t]*run:[ \t]*(.+)$", workflow):
+    for match in re.finditer(r"(?m)^[ \t]*(?:-[ \t]*)?run:[ \t]*(.+)$", workflow):
         command = match.group(1).strip()
         if command in SETUP_RUNS:
             continue

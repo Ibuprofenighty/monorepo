@@ -138,7 +138,6 @@ def validate(a: dict) -> dict:
             fail("mobile_org is required when mobile-flutter is selected (🔴 blocking)")
         if not re.fullmatch(r"[a-z][a-z0-9_]*(\.[a-z][a-z0-9_]*)+", org):
             fail(f"mobile_org {org!r}: reverse domain, lowercase, e.g. com.example")
-        tool("flutter")
     tool("pnpm")
     tool("uv")
     if "web-next" in clients and a.get("web_rendering") not in (None, "ssr", "static-export"):
