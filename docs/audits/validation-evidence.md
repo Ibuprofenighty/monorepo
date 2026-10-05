@@ -21,6 +21,29 @@
 
 （按时间倒序追加）
 
+## 2026-10-05 · make verify
+
+- 环境：Windows 11（10.0.26200，GBK 控制台）；Python 3.12.12（uv 0.9.21）；Node v24.11.1；pnpm 9.7.0；
+  Docker 29.2.1；Compose v5.1.0。PostgreSQL 16 容器提供 `TEST_DATABASE_URL`，测完删除。
+  仓库已有 `main` 提交，破坏性变更检查对照该 HEAD。
+- 命令：`make verify`（已设置 `TEST_DATABASE_URL` 与 `DATABASE_URL`）
+- 结果：exit 0
+  - check-toolchain：ok（node 24.11.1）
+  - check-contract：母版 Spectral 无 error；微信拼接后的 OpenAPI PASS
+  - check-breaking：下载 oasdiff v1.33.0，校验记录的 sha256，对照 HEAD 无破坏性变更
+  - check-generated：clean
+  - lint / typecheck / check-architecture / check-specs / check-counterexamples / check-docs：通过
+    （check-traceability 10 spec ids；check-docs 35 files；反例 CAUGHT）
+  - test-unit：pytest 17 passed；vitest api-client 10、web 1、miniprogram 2
+  - test-integration（`integration or api`）：24 passed，0 skipped
+  - test-contract：19 passed
+  - test-migrations：3 passed，0 skipped
+  - test-security：29 passed
+  - check-generator：answers-miniprogram、answers-web-mobile、empty-capabilities 均 PASS
+- 未验证项：本条命令不含 `tests/e2e/run.sh`、不含 `runtime-server` 镜像、不含 Dart / Flutter 测试
+- 残余风险：oasdiff 二进制缓存在本机 `.tools/`，不进入 git。
+- 执行人：本会话
+
 ## 2026-10-05 · 生成器锁、契约、镜像、PostgreSQL、E2E
 
 - 环境：Windows 11（10.0.26200，GBK 控制台）；Python 3.12.12（uv 0.9.21）；Node v24.11.1；pnpm 9.7.0；

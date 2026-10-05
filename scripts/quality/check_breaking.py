@@ -14,11 +14,13 @@ Usage: python scripts/quality/check_breaking.py
 
 from __future__ import annotations
 
+import hashlib
 import os
 import platform
 import shutil
 import subprocess
 import sys
+import tarfile
 import urllib.request
 from pathlib import Path
 
@@ -26,18 +28,32 @@ ROOT = Path(__file__).resolve().parents[2]
 SPEC = ROOT / "contracts" / "http" / "openapi.yaml"
 OASDIFF_VERSION = "v1.33.0"
 BIN_DIR = ROOT / ".tools" / "bin"
+# sha256 of the release archives, from that tag's checksums.txt. The gate does
+# not trust a re-fetched checksum file.
+ARCHIVE_SHA256 = {
+    "oasdiff_1.33.0_darwin_all.tar.gz": "2a479337c15afdcbf0b1e89c0b4d0cf0176472dbc11483358fed1f831d1e46c5",  # noqa: E501
+    "oasdiff_1.33.0_linux_amd64.tar.gz": "43a4e328e2d13ba1552d760aa68d2485c75c5621f309f6ff64ae895188345247",  # noqa: E501
+    "oasdiff_1.33.0_linux_arm64.tar.gz": "4ae3c362d6074d919aada2dea82d0ee84366591600384455d0bdc658ddf8f7ae",  # noqa: E501
+    "oasdiff_1.33.0_windows_amd64.tar.gz": "22f98c7247075f8a446e783595802d6d38637de1760df264f3d4b3309f766c5b",  # noqa: E501
+    "oasdiff_1.33.0_windows_arm64.tar.gz": "d51bd1ea4b05ff9b314245d1e97f84c222b22ce34a930e8e305c68c32edbe951",  # noqa: E501
+}
 
 
 def _oasdiff_binary() -> Path:
     system = platform.system().lower()
     machine = platform.machine().lower()
-    arch = {"x86_64": "amd64", "aarch64": "arm64"}.get(machine, "amd64")
+    arch = {"x86_64": "amd64", "amd64": "amd64", "aarch64": "arm64", "arm64": "arm64"}.get(
+        machine, "amd64"
+    )
     if system == "darwin":
         asset = f"oasdiff_{OASDIFF_VERSION[1:]}_darwin_all.tar.gz"
     elif system == "windows":
-        asset = f"oasdiff_{OASDIFF_VERSION[1:]}_windows_amd64.zip"
+        asset = f"oasdiff_{OASDIFF_VERSION[1:]}_windows_{arch}.tar.gz"
     else:
         asset = f"oasdiff_{OASDIFF_VERSION[1:]}_linux_{arch}.tar.gz"
+    expected = ARCHIVE_SHA256.get(asset)
+    if expected is None:
+        sys.exit(f"[check-breaking] no recorded checksum for {asset}")
     dest = BIN_DIR / ("oasdiff.exe" if system == "windows" else "oasdiff")
     if dest.exists():
         return dest
@@ -46,21 +62,17 @@ def _oasdiff_binary() -> Path:
     BIN_DIR.mkdir(parents=True, exist_ok=True)
     tmp_archive = BIN_DIR / asset
     urllib.request.urlretrieve(url, tmp_archive)
-    import tarfile
-    import zipfile
-
-    if asset.endswith(".zip"):
-        with zipfile.ZipFile(tmp_archive) as z:
-            names = [n for n in z.namelist() if n.endswith("oasdiff.exe")]
-            z.extract(names[0], BIN_DIR)
-            (BIN_DIR / names[0]).rename(dest)
-    else:
-        with tarfile.open(tmp_archive) as t:
-            member = next(
-                m for m in t.getmembers() if m.name.endswith("/oasdiff") or m.name == "oasdiff"
-            )
-            t.extract(member, BIN_DIR)
-            (BIN_DIR / member.name).rename(dest)
+    digest = hashlib.sha256(tmp_archive.read_bytes()).hexdigest()
+    if digest != expected:
+        tmp_archive.unlink(missing_ok=True)
+        sys.exit(f"[check-breaking] checksum mismatch for {asset}")
+    with tarfile.open(tmp_archive) as bundle:
+        names = {"oasdiff", "oasdiff.exe"}
+        member = next(item for item in bundle.getmembers() if Path(item.name).name in names)
+        payload = bundle.extractfile(member)
+        if payload is None:
+            sys.exit("[check-breaking] archive has no oasdiff binary")
+        dest.write_bytes(payload.read())
     tmp_archive.unlink()
     dest.chmod(0o755)
     return dest
