@@ -30,8 +30,8 @@ Installed trees such as `node_modules/`, `.venv/` and `.dart_tool/` are local to
 - 📜 **One handwritten contract.** `contracts/http/openapi.yaml` is the only HTTP source. TypeScript, Python and Dart clients are generated from it. Do not edit `generated/`.
 - 🧱 **A modular FastAPI monolith.** Business logic stays in `apps/backend`. Clients stay thin.
 - 🎛️ **Generate-time selection.** Identity (`local`, `wechat`, `keycloak`) and capabilities (`redis`, `worker`) are copied in only when chosen. Unselected verifier files are deleted. There is no runtime feature flag for them.
-- 📌 **Pinned Node.** `.node-version`, CI, `package.json` `engines` and the web image all say `24.11.1`. `make check-toolchain` checks that pin. It does not query a registry.
-- 🧪 **A merge gate.** `make verify` lints the contract, regenerates clients into a temp tree and diffs them, runs unit and security tests, and (when `TEST_DATABASE_URL` is set) runs the PostgreSQL integration and migration suites.
+- 📌 **Pinned toolchains.** `.node-version`, `.python-version`, `.flutter-version`, and `package.json` `packageManager` are the authorities. CI reads those files. `make check-toolchain` checks the copies. It does not query a registry.
+- 🧪 **One merge gate.** `make verify` is the set GitHub CI runs: contract, clients, Dart, unit and security tests, end-to-end HTTP, image build, vulnerability scan, and SBOM. PostgreSQL integration and migration tests run when `TEST_DATABASE_URL` is set.
 
 ## 🗺️ Layout
 
@@ -116,7 +116,7 @@ Copy the field names from [project-answers.example.yaml](project-answers.example
 
 ## 🧪 Verify the template
 
-`make verify` is the merge gate. It does not modify source. Integration and migration tests talk to a real PostgreSQL and are skipped when `TEST_DATABASE_URL` is unset, so a green run without that variable is not a database proof.
+`make verify` is the only merge gate. GitHub CI runs that set and no other test commands. It does not modify source. The run covers the contract, generated clients, Dart analyze/test, client builds, end-to-end HTTP, the backend image, the web `runtime-static` image, a Trivy scan, and an SPDX SBOM. Integration and migration tests talk to a real PostgreSQL and are skipped when `TEST_DATABASE_URL` is unset, so a green run without that variable is not a database proof.
 
 ```bash
 docker run -d --name project-pg \
@@ -128,7 +128,7 @@ export DATABASE_URL="$TEST_DATABASE_URL"
 make verify
 ```
 
-The breaking-change check compares `contracts/http/openapi.yaml` with `git HEAD`. On a tree that is not a git repository it skips. End-to-end HTTP checks are separate: `bash tests/e2e/run.sh` (Git Bash on Windows).
+The breaking-change check compares `contracts/http/openapi.yaml` with `git HEAD`. On a tree that is not a git repository it skips. On Windows, `make test-e2e` uses Git Bash.
 
 Records of what actually ran live in [docs/audits/validation-evidence.md](docs/audits/validation-evidence.md).
 
@@ -148,7 +148,7 @@ Day-to-day commands are in [docs/development/onboarding.md](docs/development/onb
 
 - Do not promise that a template update rewrites existing projects. Sync from the changelog.
 - Redis here is the readiness dependency and the broker for the arq worker (hourly idempotency purge). It is not a general message bus. Kafka is not a selectable capability.
-- This repository does not ship a `LICENSE` file. Do not assume the license of any other project applies here.
+- This repository is [MIT](LICENSE).
 
 <a id="zh-cn"></a>
 
@@ -163,8 +163,8 @@ Day-to-day commands are in [docs/development/onboarding.md](docs/development/onb
 - 📜 **一份手写契约。** `contracts/http/openapi.yaml` 是唯一的 HTTP 来源。TypeScript、Python、Dart 客户端都从它生成。不要手改 `generated/`。
 - 🧱 **一个 FastAPI 模块化单体。** 业务在 `apps/backend`。客户端保持薄。
 - 🎛️ **生成时选型。** 身份（`local`、`wechat`、`keycloak`）和能力（`redis`、`worker`）只在勾选时进入新项目。没选中的 verifier 文件会被删除。没有运行时开关。
-- 📌 **Node 钉死。** `.node-version`、CI、`package.json` 的 `engines` 和 web 镜像都是 `24.11.1`。`make check-toolchain` 核对这几处，不访问镜像仓库。
-- 🧪 **合并门禁。** `make verify` 检查契约、在临时目录重新生成客户端并做 diff、跑单元测试和安全测试。设置了 `TEST_DATABASE_URL` 时，还会跑真实 PostgreSQL 的集成测试和迁移测试。
+- 📌 **工具链钉死。** `.node-version`、`.python-version`、`.flutter-version` 和 `package.json` 的 `packageManager` 是权威。CI 读这些文件。`make check-toolchain` 核对副本，不访问镜像仓库。
+- 🧪 **唯一合并门禁。** `make verify` 就是 GitHub CI 跑的那一套：契约、客户端、Dart、单元测试、安全测试、端到端 HTTP、镜像构建、漏洞扫描和 SBOM。设置了 `TEST_DATABASE_URL` 时，还会跑真实 PostgreSQL 的集成测试和迁移测试。
 
 ## 🗺️ 目录
 
@@ -249,7 +249,7 @@ uv run --project apps/backend --frozen --extra dev python scripts/scaffold/creat
 
 ## 🧪 验收母版
 
-`make verify` 是合并门禁，不改源码。集成测试和迁移测试需要真实 PostgreSQL。没设 `TEST_DATABASE_URL` 时它们会跳过，那种通过不能当作数据库证明。
+`make verify` 是唯一合并门禁。GitHub CI 只跑这一套，不另写测试命令。它不改源码。范围包括契约、生成客户端、Dart 分析与测试、客户端构建、端到端 HTTP、backend 镜像、web 的 `runtime-static` 镜像、Trivy 扫描和 SPDX SBOM。集成测试和迁移测试需要真实 PostgreSQL。没设 `TEST_DATABASE_URL` 时它们会跳过，那种通过不能当作数据库证明。
 
 ```bash
 docker run -d --name project-pg \
@@ -261,7 +261,7 @@ export DATABASE_URL="$TEST_DATABASE_URL"
 make verify
 ```
 
-破坏性变更检查拿 `contracts/http/openapi.yaml` 和 `git HEAD` 比较。当前目录不是 git 仓库时，这一项会跳过。端到端 HTTP 检查是另一条命令：`bash tests/e2e/run.sh`（Windows 用 Git Bash）。
+破坏性变更检查拿 `contracts/http/openapi.yaml` 和 `git HEAD` 比较。当前目录不是 git 仓库时，这一项会跳过。Windows 上 `make test-e2e` 使用 Git Bash。
 
 实际跑过的命令记在 [docs/audits/validation-evidence.md](docs/audits/validation-evidence.md)。
 
@@ -281,4 +281,4 @@ make bootstrap
 
 - 不要承诺母版更新会自动改写已生成项目。对齐方式是 changelog。
 - 这里的 Redis 是 readiness 依赖，也是 arq worker 的队列（每小时清理过期幂等记录）。它不是通用消息总线。Kafka 不是可选项。
-- 本仓库没有 `LICENSE` 文件。不要把其他项目的许可证套到这里。
+- 本仓库使用 [MIT](LICENSE) 许可证。

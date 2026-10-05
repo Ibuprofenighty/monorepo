@@ -36,6 +36,9 @@ RUN mkdir -p apps/${APP}/public && pnpm --filter ./apps/${APP} build
 FROM nginx:1.27-alpine@${NGINX_DIGEST} AS runtime-static
 ARG APP
 ARG WEB_OUTPUT
+# The base digest stays pinned. Security updates that already have a fix are
+# applied here so the image scan can fail when a newer fix appears.
+RUN apk upgrade --no-cache
 COPY infra/nginx/snippets/ /etc/nginx/snippets/
 COPY infra/nginx/conf.d/app.conf /etc/nginx/conf.d/default.conf
 COPY --from=builder /app/apps/${APP}/${WEB_OUTPUT} /usr/share/nginx/html
@@ -46,6 +49,9 @@ HEALTHCHECK --interval=30s --timeout=5s --retries=3 CMD wget -qO- http://127.0.0
 FROM node:${NODE_VERSION}-bookworm-slim@${NODE_DIGEST} AS runtime-server
 WORKDIR /app
 ARG APP
+RUN apt-get update \
+    && apt-get upgrade -y --no-install-recommends \
+    && rm -rf /var/lib/apt/lists/*
 ENV NODE_ENV=production
 ENV APP_DIR=apps/${APP}
 COPY --from=builder /app/apps/${APP}/.next/standalone ./

@@ -8,6 +8,17 @@ COMPOSE := docker compose --env-file .env -f infra/compose/compose.yaml -f infra
 UV_BE := uv run --frozen --extra dev
 # Repo scripts run in the locked backend environment (pyyaml etc.) on every OS.
 PY := uv run --project apps/backend --frozen --extra dev python
+BACKEND_IMAGE := backend:ci
+WEB_IMAGE := web:ci
+# Tool images are digest-pinned here. CI does not repeat the tags.
+TRIVY_IMAGE := aquasec/trivy:0.63.0@sha256:6fb0646988fcd2fdf7bf123f7174945ebc2c9c72d1fa1567c8d7daeeb70f8037
+SYFT_IMAGE := anchore/syft:v1.29.0@sha256:e86b0ba0b1d2fe8a2e9f96ed9b22033df9781f43b9a7eb27c57e6c89234946bc
+export MP_API_BASE_URL := https://api.example.com
+ifeq ($(OS),Windows_NT)
+BASH := "C:/Program Files/Git/bin/bash.exe"
+else
+BASH := bash
+endif
 
 .PHONY: help
 help: ## Show this help
@@ -93,12 +104,16 @@ check-counterexamples: ## Directed fault injection: key rules must be caught by 
 	$(PY) scripts/quality/check_counterexamples.py
 
 .PHONY: check-toolchain
-check-toolchain: ## Node pin matches .node-version, CI, engines, and the web image digest
+check-toolchain: ## Version files match CI, engines, images, and Action SHAs
 	$(PY) scripts/quality/check_toolchain.py
 
 .PHONY: check-docs
 check-docs: ## Links, entry points and doc/change traceability
 	$(PY) scripts/quality/check_docs.py
+
+.PHONY: check-gate
+check-gate: ## CI make targets are exactly the verify prerequisites
+	$(PY) scripts/quality/check_gate.py
 
 # ---------- tests ----------
 .PHONY: test-unit-py
@@ -132,18 +147,59 @@ test-security: ## AuthN/AuthZ allow/deny, no-side-effect on deny, scope isolatio
 
 .PHONY: test-e2e
 test-e2e: ## Required end-to-end suites for every selected client
-	bash tests/e2e/run.sh
+	$(BASH) tests/e2e/run.sh
+
+# begin client:mobile-flutter
+.PHONY: check-dart
+check-dart: ## Analyze and test the Dart SDK and the Flutter app
+	cd packages/dart/api_client && dart pub get && dart analyze && dart test
+	cd apps/mobile && flutter pub get && flutter analyze && flutter test
+# end client:mobile-flutter
+
+.PHONY: build-clients build-web build-web-next build-mp
+build-clients: ## Build the Vite app, the Next app, and the miniprogram
+# begin client:web-vite
+build-clients: build-web
+build-web:
+	pnpm --filter @project/web build
+# end client:web-vite
+# begin client:web-next
+build-clients: build-web-next
+build-web-next:
+	pnpm --filter @project/web-next build
+# end client:web-next
+# begin client:wechat-native
+build-clients: build-mp
+build-mp:
+	node scripts/miniprogram/build.mjs
+# end client:wechat-native
+
+.PHONY: images
+images: ## Build the backend image and the web runtime-static image
+	docker build -f infra/docker/backend.Dockerfile -t $(BACKEND_IMAGE) .
+	docker build -f infra/docker/web.Dockerfile --target runtime-static -t $(WEB_IMAGE) .
+
+.PHONY: scan-images
+scan-images: ## Fail on HIGH/CRITICAL findings that already have a fix
+	docker run --rm -v /var/run/docker.sock:/var/run/docker.sock $(TRIVY_IMAGE) image --severity HIGH,CRITICAL --ignore-unfixed --exit-code 1 $(BACKEND_IMAGE)
+	docker run --rm -v /var/run/docker.sock:/var/run/docker.sock $(TRIVY_IMAGE) image --severity HIGH,CRITICAL --ignore-unfixed --exit-code 1 $(WEB_IMAGE)
+
+.PHONY: sbom
+sbom: ## Write an SPDX SBOM for the backend image
+	docker run --rm -v /var/run/docker.sock:/var/run/docker.sock -v $(subst \,/,$(CURDIR)):/work -w /work $(SYFT_IMAGE) $(BACKEND_IMAGE) -o spdx-json=sbom-backend.spdx.json
 
 .PHONY: verify
-verify: check-toolchain check-contract check-breaking check-generated lint typecheck check-architecture check-specs check-counterexamples check-docs test-unit test-integration test-contract test-migrations test-security ## Merge gate set (no source modification)
+verify: check-toolchain check-gate check-contract check-breaking check-generated lint-py lint-ts typecheck-py typecheck-ts check-architecture check-specs check-counterexamples check-docs test-unit-py test-unit-ts test-integration test-contract test-migrations test-security build-clients ## Merge gate. CI runs this set and nothing else.
+# begin client:mobile-flutter
+verify: check-dart
+# end client:mobile-flutter
+verify: test-e2e images scan-images sbom
 # begin template-only
 verify: check-generator
 # end template-only
 
 .PHONY: verify-release
-verify-release: verify ## Release gates: verify + image build + prod compose config check
-	docker build -f infra/docker/backend.Dockerfile .
-	docker compose -f infra/compose/compose.yaml config -q
+verify-release: verify ## Same set as verify
 
 # ---------- build / deploy ----------
 .PHONY: build

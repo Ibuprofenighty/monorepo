@@ -18,7 +18,12 @@ RUN --mount=type=cache,target=/root/.cache/uv \
 
 FROM python:${PYTHON_VERSION}-slim-bookworm@${PYTHON_DIGEST} AS runtime
 WORKDIR /srv/app
-RUN useradd -r -u 10001 app && mkdir -p /srv/app && chown app:app /srv/app
+# The base digest stays pinned. Security updates that already have a fix are
+# applied here so the image scan can fail when a newer fix appears.
+RUN apt-get update \
+    && apt-get upgrade -y --no-install-recommends \
+    && rm -rf /var/lib/apt/lists/* \
+    && useradd -r -u 10001 app && mkdir -p /srv/app && chown app:app /srv/app
 # Copy the synced environment and the backend source.
 COPY --from=builder /srv/app/.venv /srv/app/.venv
 COPY apps/backend/src /srv/app/src

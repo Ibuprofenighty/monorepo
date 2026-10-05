@@ -195,7 +195,7 @@ def apply_selection(target: Path, answers: dict) -> None:
     identity = answers["identity"]
     caps = list(answers.get("capabilities") or [])
     pkg = answers["python_package"]
-    disabled = _disabled(identity, caps)
+    disabled = _disabled(identity, caps, list(answers["clients"]))
     _rewrite_verifier(target, identity, pkg)
     _rewrite_settings(target, identity, pkg)
     if identity == "wechat":
@@ -273,7 +273,7 @@ def _uv_lock(target: Path) -> None:
         fail("uv lock failed in the generated project")
 
 
-def _disabled(identity: str, caps: list[str]) -> set[str]:
+def _disabled(identity: str, caps: list[str], clients: list[str] | None = None) -> set[str]:
     disabled: set[str] = {"template-only"}
     if "redis" not in caps:
         disabled.add("capability:redis")
@@ -281,6 +281,10 @@ def _disabled(identity: str, caps: list[str]) -> set[str]:
         disabled.add("capability:worker")
     if identity == "keycloak":
         disabled.add("identity:hs256")
+    if clients is not None:
+        for client in ("web-vite", "web-next", "wechat-native", "mobile-flutter"):
+            if client not in clients:
+                disabled.add(f"client:{client}")
     return disabled
 
 

@@ -12,7 +12,7 @@ Node 20 已于 2026-04-30 结束维护。版本号如果在 CI、镜像和本地
 
 Node 固定为 **24.11.1**。`.node-version` 是版本字符串的唯一来源，其余位置必须等于它：
 
-- `.github/workflows/ci.yaml` 的每个 `node-version`
+- `.github/workflows/ci.yaml` 的 `node-version-file: .node-version`（不在 workflow 里再写版本号，见 0008）
 - `package.json` 的 `engines.node`
 - `infra/docker/web.Dockerfile` 的 `ARG NODE_VERSION`（完整版本，不是 `24`）
 

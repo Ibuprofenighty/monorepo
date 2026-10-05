@@ -21,6 +21,35 @@
 
 （按时间倒序追加）
 
+## 2026-10-05 · make verify（合并门禁）
+
+- 环境：Windows 11（10.0.26200）；Python 3.12.12（uv 0.9.21）；Node v24.11.1；pnpm 9.7.0；
+  Flutter 3.47.3（Dart 3.13.3）；Docker 29.2.1；Compose v5.1.0。PostgreSQL 16 容器提供
+  `TEST_DATABASE_URL`，测完删除。
+- 命令：`make verify`（已设置 `TEST_DATABASE_URL` 与 `DATABASE_URL`）
+- 结果：exit 0
+  - check-toolchain：ok（node 24.11.1，python 3.12，flutter 3.47.3，pnpm@9.7.0）
+  - check-gate：ok（26 个目标）
+  - check-contract：母版 Spectral 无 error；微信拼接后的 OpenAPI PASS
+  - check-breaking：对照 HEAD 无破坏性变更
+  - check-generated：clean
+  - lint / typecheck / check-architecture / check-specs / check-counterexamples / check-docs：通过
+    （check-traceability 10 spec ids；check-docs 37 files；反例 4/4 CAUGHT；mypy 63 files）
+  - test-unit：pytest 17 passed；vitest api-client 10、web 1、miniprogram 2
+  - test-integration：24 passed，0 skipped
+  - test-contract：19 passed
+  - test-migrations：3 passed，0 skipped
+  - test-security：29 passed
+  - build-clients：Vite、Next static export、小程序 dist
+  - check-dart：api_client 6 passed；mobile analyze 无问题、2 passed
+  - test-e2e：ALL E2E CHECKS PASSED
+  - images / scan-images：backend 与 web `runtime-static` 构建完成；已有修复版本的 HIGH/CRITICAL 为 0
+  - sbom：写出 backend 镜像的 SPDX 文件，不入库
+  - check-generator：answers-miniprogram、answers-web-mobile、empty-capabilities 均 PASS
+- 未验证项：该提交在 GitHub Actions 上的运行；`main` 分支保护
+- 残余风险：基础镜像里尚无修复版本的系统包不会让扫描失败
+- 执行人：agent
+
 ## 2026-10-05 · make verify
 
 - 环境：Windows 11（10.0.26200，GBK 控制台）；Python 3.12.12（uv 0.9.21）；Node v24.11.1；pnpm 9.7.0；

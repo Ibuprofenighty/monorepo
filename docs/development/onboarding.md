@@ -10,8 +10,7 @@
 
 ## 2. 跑起来
 
-前置工具：Python 3.12（由 uv 管理）、uv、Node 24.11.1（`.node-version`，其他版本 `make bootstrap` 失败）、pnpm ≥ 9、Docker（含 compose 插件）、
-GNU make；有 `apps/mobile` 时还需 Flutter SDK（stable）。
+前置工具：Python 与 `.python-version` 相同（由 uv 管理）、uv、Node 与 `.node-version` 相同、pnpm 与 `package.json` 的 `packageManager` 相同、Docker（含 compose 插件）、GNU make。有 `apps/mobile` 时 Flutter 与 `.flutter-version` 相同。`make bootstrap` 对不上就失败。
 
 ```bash
 pnpm install --frozen-lockfile   # JS 依赖（含 openapi-typescript）
@@ -29,7 +28,7 @@ Python 依赖无需手动安装：所有 Python 命令经 `uv run --frozen` 执�
   `make verify` 等门禁直接可用。
 - 仓库脚本都是 Python / Node，可脱离 make 直接运行，例如
   `uv run --project apps/backend --frozen --extra dev python scripts/quality/check_docs.py`。
-- `make test-e2e`（`tests/e2e/run.sh`）需要 bash 与 Docker，在 Git Bash 或 WSL 中运行。
+- `make verify` 包含端到端、Dart 和镜像扫描。`make test-e2e` 在 Windows 上调用 Git Bash，需要本机已安装 Docker。
 
 ### 配置
 

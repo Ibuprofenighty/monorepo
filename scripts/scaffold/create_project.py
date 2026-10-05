@@ -478,35 +478,47 @@ def apply_web_rendering(target: Path, a: dict) -> None:
         print("[create-project] web client: vite (dist)")
 
 
+def _drop_verify_token(text: str, token: str) -> str:
+    lines: list[str] = []
+    for line in text.splitlines(keepends=True):
+        if line.startswith("verify:"):
+            newline = "\n" if line.endswith("\n") else ""
+            raw = line.rstrip("\r\n")
+            comment = ""
+            if "##" in raw:
+                raw, comment = raw.split("##", 1)
+                comment = "##" + comment
+            words = [word for word in raw.split() if word != token]
+            raw = " ".join(words)
+            if comment:
+                raw = f"{raw} {comment}"
+            line = raw + newline
+        lines.append(line)
+    return "".join(lines)
+
+
 def prune_ci(target: Path, a: dict) -> None:
-    """Drop CI steps/jobs for clients that were not selected."""
-    ci = target / ".github/workflows/ci.yaml"
-    if not ci.exists():
+    """Drop CI jobs that belong to clients the generator did not copy.
+
+    Per-client build lines and the Dart target are removed by selection markers.
+    A project with no TypeScript client also drops the web job and its verify tokens.
+    """
+    ci_path = target / ".github/workflows/ci.yaml"
+    if not ci_path.exists():
         return
-    scope = a["ts_scope"]
-    lines = ci.read_text(encoding="utf-8").splitlines(keepends=True)
-    out: list[str] = []
-    skip_env = False
-    for line in lines:
-        if skip_env:
-            # the `env: { MP_API_BASE_URL: ... }` line after the miniprogram step
-            if "MP_API_BASE_URL" in line:
-                skip_env = False
-                continue
-            skip_env = False
-        if f"pnpm --filter @{scope}/web build" in line and "web-vite" not in a["clients"]:
-            continue
-        if f"pnpm --filter @{scope}/web-next build" in line and "web-next" not in a["clients"]:
-            continue
-        if "node scripts/miniprogram/build.mjs" in line and "wechat-native" not in a["clients"]:
-            skip_env = True
-            continue
-        out.append(line)
-    text = "".join(out)
+    text = ci_path.read_text(encoding="utf-8")
+    make_path = target / "Makefile"
+    make = make_path.read_text(encoding="utf-8") if make_path.exists() else ""
     if "mobile-flutter" not in a["clients"]:
-        # drop the whole dart job
         text = re.sub(r"\n  dart:\n(?:    .*\n)+?(?=\n  \w)", "\n", text)
-    ci.write_text(text, encoding="utf-8", newline="\n")
+        make = _drop_verify_token(make, "check-dart")
+    if not (TS_CLIENTS & set(a["clients"])):
+        text = re.sub(r"\n  web:\n(?:    .*\n)+?(?=\n  \w)", "\n", text)
+        for token in ("lint-ts", "typecheck-ts", "test-unit-ts", "build-clients"):
+            make = _drop_verify_token(make, token)
+    ci_path.write_text(text, encoding="utf-8", newline="\n")
+    if make_path.exists():
+        make_path.write_text(make, encoding="utf-8", newline="\n")
     print("[create-project] CI pruned to selected clients")
 
 

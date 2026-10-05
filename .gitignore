@@ -3,6 +3,7 @@ node_modules/
 dist/
 *.tsbuildinfo
 .next/
+out/
 *.local
 
 # Python
@@ -38,6 +39,9 @@ packages/dart/**/pubspec.lock
 
 # Downloaded tool binaries (oasdiff). Not part of the template.
 .tools/
+
+# Image SBOM produced by `make sbom`.
+sbom-*.spdx.json
 
 # Misc
 .DS_Store
