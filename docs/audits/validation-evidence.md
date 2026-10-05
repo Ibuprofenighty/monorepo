@@ -46,7 +46,8 @@
   - images / scan-images：backend 与 web `runtime-static` 构建完成；已有修复版本的 HIGH/CRITICAL 为 0
   - sbom：写出 backend 镜像的 SPDX 文件，不入库
   - check-generator：answers-miniprogram、answers-web-mobile、empty-capabilities 均 PASS
-- 未验证项：该提交在 GitHub Actions 上的运行；`main` 分支保护
+- GitHub：`ci` run [37267213502](https://github.com/Ibuprofenighty/monorepo/actions/runs/37267213502)（提交 `86ea806`）的 contracts、backend、web、dart、e2e、docker 均为 success。同一次推送的 `security` 也 success。`main` 要求这六个检查。
+- 未验证项：无
 - 残余风险：基础镜像里尚无修复版本的系统包不会让扫描失败
 - 执行人：agent
 
