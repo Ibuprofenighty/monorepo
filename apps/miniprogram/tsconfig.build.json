@@ -1,0 +1,1 @@
+{"compilerOptions":{"declaration":false,"module":"commonjs","moduleResolution":"node","noEmit":false,"outDir":"dist","rootDir":"src","sourceMap":false,"target":"es2017"},"extends":"./tsconfig.json","include":["src"]}

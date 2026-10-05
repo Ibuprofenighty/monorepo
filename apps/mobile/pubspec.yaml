@@ -1,0 +1,24 @@
+name: project_mobile
+description: Project Flutter app (blueprint 07).
+publish_to: none
+version: 0.1.0
+
+environment:
+  sdk: ^3.4.0
+  flutter: ">=3.22.0"
+
+dependencies:
+  flutter:
+    sdk: flutter
+  # Key must equal the target pubspec `name` (Dart path dependency rule).
+  project_api_client:
+    path: ../../packages/dart/api_client
+  http: ^1.2.0
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  flutter_lints: ^4.0.0
+
+flutter:
+  uses-material-design: true

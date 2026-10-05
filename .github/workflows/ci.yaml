@@ -1,0 +1,223 @@
+name: ci
+
+on:
+  push:
+  pull_request:
+
+# Supply chain: deny all permissions by default; each job declares what it needs.
+permissions: {}
+
+jobs:
+  contracts:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - uses: pnpm/action-setup@f40ffcd9367d9f12939873eb1018b921a783ffaa # v4
+        with: { version: 9 }
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        with: { node-version: 24.11.1, cache: pnpm }
+      - run: pnpm install --frozen-lockfile # openapi-typescript is a locked devDependency
+      - uses: astral-sh/setup-uv@bec219d24cd3e171d82865faccec33120bb574f4 # v10.1.0; uvx runs the pinned datamodel-code-generator
+      - run: make check-contract
+      - run: make check-breaking
+      - run: make check-generated
+
+  backend:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    services:
+      postgres:
+        image: postgres:16-bookworm
+        env:
+          POSTGRES_USER: project
+          POSTGRES_PASSWORD: ci-pw
+          POSTGRES_DB: project_test
+        ports: ["5432:5432"]
+        options: >-
+          --health-cmd "pg_isready -U project"
+          --health-interval 10s --health-timeout 5s --health-retries 5
+      # begin capability:redis
+      redis:
+        image: redis:7-bookworm
+        ports: ["6379:6379"]
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 10s --health-timeout 5s --health-retries 5
+      # end capability:redis
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - uses: astral-sh/setup-uv@bec219d24cd3e171d82865faccec33120bb574f4 # v10.1.0
+      - run: uv sync --frozen --package project-backend --extra dev
+      - run: make lint-py
+      - run: make typecheck-py
+      - run: make test-unit-py
+      - name: real postgres tests
+        run: make test-integration test-migrations
+        env:
+          TEST_DATABASE_URL: postgresql+asyncpg://project:ci-pw@localhost:5432/project_test
+          DATABASE_URL: postgresql+asyncpg://project:ci-pw@localhost:5432/project_test
+          # begin capability:redis
+          REDIS_URL: redis://localhost:6379/0
+          # end capability:redis
+      - run: make test-security
+      - run: make test-contract
+      - run: make check-architecture
+
+  quality:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - uses: astral-sh/setup-uv@bec219d24cd3e171d82865faccec33120bb574f4 # v10.1.0
+      - run: uv sync --frozen --package project-backend --extra dev
+      - run: make check-toolchain
+      - run: make check-docs
+      - run: make check-specs
+      - run: make check-counterexamples
+
+  web:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - uses: pnpm/action-setup@f40ffcd9367d9f12939873eb1018b921a783ffaa # v4
+        with: { version: 9 }
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        with: { node-version: 24.11.1, cache: pnpm }
+      - run: pnpm install --frozen-lockfile
+      - run: make lint-ts
+      - run: make typecheck-ts
+      - run: make test-unit-ts
+      - run: pnpm --filter @project/web build
+      - run: pnpm --filter @project/web-next build
+      - run: make mp-build
+        env: { MP_API_BASE_URL: https://api.example.com }
+
+  dart:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - uses: subosito/flutter-action@1a449444c387b1966244ae4d4f8c696479add0b2 # v2
+        with: { channel: stable, cache: true }
+      - run: dart pub get
+        working-directory: packages/dart/api_client
+      - run: dart analyze
+        working-directory: packages/dart/api_client
+      - run: dart test
+        working-directory: packages/dart/api_client
+      - run: flutter pub get
+        working-directory: apps/mobile
+      - run: flutter analyze
+        working-directory: apps/mobile
+      - run: flutter test
+        working-directory: apps/mobile
+
+  docker:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      security-events: write
+    env:
+      POSTGRES_PASSWORD: ci-pw
+      JWT_SECRET: ci-config-check-secret-not-deployed-0000
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      # begin template-only
+      - uses: pnpm/action-setup@f40ffcd9367d9f12939873eb1018b921a783ffaa # v4
+        with: { version: 9 }
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        with: { node-version: 24.11.1, cache: pnpm }
+      - uses: astral-sh/setup-uv@bec219d24cd3e171d82865faccec33120bb574f4 # v10.1.0
+      - run: pnpm install --frozen-lockfile
+      - run: uv sync --frozen --package project-backend --extra dev
+      - run: make check-generator
+      # end template-only
+      - uses: docker/setup-buildx-action@8d2750c68a42422c14e847fe6c8ac0403b4cbd6f # v3
+      # SLSA provenance is generated by build-push-action (provenance: true).
+      # Attestations attach on push; in CI we build for scan/SBOM without pushing.
+      # Production releases must push to a registry to publish the attestation.
+      - name: Build backend
+        uses: docker/build-push-action@10e90e3645eae34f1e60eeb005ba3a3d33f178e8 # v6
+        with:
+          context: .
+          file: infra/docker/backend.Dockerfile
+          tags: backend:ci
+          load: true
+          provenance: true
+          sbom: true
+      - name: Build web
+        uses: docker/build-push-action@10e90e3645eae34f1e60eeb005ba3a3d33f178e8 # v6
+        with:
+          context: .
+          file: infra/docker/web.Dockerfile
+          target: runtime-static
+          tags: web:ci
+          load: true
+          provenance: true
+          sbom: true
+      - run: docker compose -f infra/compose/compose.yaml config -q
+      - run: docker compose -f infra/compose/compose.yaml -f infra/compose/compose.test.yaml -p project-test config -q
+      - name: Trivy scan backend
+        uses: aquasecurity/trivy-action@b6643a29fecd7f34b3597bc6acb0a98b03d33ff8 # 0.33.1
+        with:
+          image-ref: backend:ci
+          format: sarif
+          output: trivy-backend.sarif
+          severity: HIGH,CRITICAL
+      - name: Trivy scan web
+        uses: aquasecurity/trivy-action@b6643a29fecd7f34b3597bc6acb0a98b03d33ff8 # 0.33.1
+        with:
+          image-ref: web:ci
+          format: sarif
+          output: trivy-web.sarif
+          severity: HIGH,CRITICAL
+      - name: Upload Trivy SARIF
+        uses: github/codeql-action/upload-sarif@87ef0dc97def48aa960fbf026a2563ee9dbdb470 # v3
+        with:
+          sarif_file: trivy-backend.sarif
+      - name: Generate SBOM
+        uses: anchore/sbom-action@9e07fd7fd4c7754e8b7de48b7823674442d75a35 # v0.20.3
+        with:
+          image: backend:ci
+          format: spdx-json
+          output-file: sbom-backend.spdx.json
+      - name: Upload SBOM
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: sbom
+          path: sbom-*.spdx.json
+
+  e2e:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - run: bash tests/e2e/run.sh
+
+  windows:
+    runs-on: windows-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - uses: astral-sh/setup-uv@bec219d24cd3e171d82865faccec33120bb574f4 # v10.1.0
+      - uses: pnpm/action-setup@f40ffcd9367d9f12939873eb1018b921a783ffaa # v4
+        with: { version: 9 }
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        with: { node-version: 24.11.1, cache: pnpm }
+      - run: pnpm install --frozen-lockfile
+      - run: uv run --frozen --extra dev pytest tests -q
+        working-directory: apps/backend
+      - run: uv run --project apps/backend --frozen --extra dev python scripts/contracts/generate.py --check
+      - run: uv run --project apps/backend --frozen --extra dev python scripts/quality/check_docs.py
+      - run: uv run --project apps/backend --frozen --extra dev python scripts/quality/check_traceability.py
+      - run: node scripts/miniprogram/build.mjs
+        env: { MP_API_BASE_URL: https://api.example.com }

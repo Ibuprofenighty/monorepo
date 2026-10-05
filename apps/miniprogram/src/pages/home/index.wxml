@@ -1,0 +1,5 @@
+<view class="container">
+  <view class="title">Project</view>
+  <view>API status: {{health}}</view>
+  <button bindtap="goResources" style="margin-top: 24rpx;">Resources</button>
+</view>

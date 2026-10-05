@@ -1,0 +1,58 @@
+# 新项目选型表（复制后填写）。标 🔴 的是门禁阻塞项，不填不能生成。
+# 填好的例子见 examples/answers-miniprogram.yaml 和 examples/answers-web-mobile.yaml
+
+# 🔴 仓库目录名：小写短横线，如 sheetshow
+project_name: my-project
+
+# 🔴 Python 包名：合法标识符小写，如 sheetshow_backend
+python_package: my_project_backend
+
+# 🔴 TS scope：如 sheetshow → @sheetshow/api-client
+ts_scope: my-project
+
+# 🔴 Dart 包名：选了 mobile-flutter 才必填，如 sheetshow_api_client
+dart_package: my_project_api_client
+
+# 🔴 移动端组织标识：选了 mobile-flutter 才必填；反向域名，作为 flutter create --org，
+# 决定 Android applicationId / iOS bundle identifier 前缀，如 com.sheetshow
+mobile_org: com.example
+
+# 产品目标（一句话）
+product_goal: 待确定
+
+# 🔴 客户端（多选，至少一个）：web-vite / web-next / wechat-native / mobile-flutter
+clients:
+  - web-vite
+
+# 选了 web-next 才填：ssr / static-export
+web_rendering: static-export
+
+# 首批业务模块（决定示例模块保留/改名；母版示例为 catalog）
+modules:
+  - catalog
+
+# 🔴 身份权威：wechat / keycloak / local
+# 约束见 docs/adr/0006：选了 wechat-native 则只能填 wechat；只安装选中的 verifier。
+# aws / gcp / azure / alibaba 还不是可选项。
+identity: local
+
+# 🔴 授权权威：local（默认，单权威）/ 独立授权服务名
+authz: local
+
+# 错误 type 命名空间（上线前替换为真实域名）
+problem_namespace: https://api.example.com/problems
+
+# 部署目标：compose（默认）/ k8s（按需，母版不含 k8s 清单）
+deploy_target: compose
+
+# 可选能力：redis / worker。storage、llm 尚无 canonical 实现，勾选则生成失败。
+# 生成时裁剪：没勾选的不生成（docs/adr/0006）。worker 依赖 redis。
+capabilities:
+  - redis
+  - worker
+
+# 是否 git init 并提交初始版本
+git_init: true
+
+# 这次生成的负责人
+owner: 待确定

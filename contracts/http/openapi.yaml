@@ -1,0 +1,304 @@
+# HTTP 源契约 — HAND-WRITTEN, 唯一来源（blueprint 02）
+# 从这里生成：TS types/operations、Python DTO、Dart client。
+# 永不手改 generated/；改这里 → make generate → make check-generated。
+openapi: 3.1.0
+info:
+  title: Project API
+  version: 1.0.0
+  description: Headless backend API. All business logic lives here; clients are thin.
+  contact:
+    name: API maintainers
+    url: https://example.com/support
+servers:
+  - url: /
+
+tags:
+  - name: health
+    description: Liveness probes
+  - name: catalog
+    description: Example domain module (replace with your domain)
+
+paths:
+  /api/v1/health:
+    get:
+      operationId: getHealth
+      tags: [health]
+      summary: Liveness probe
+      description: Returns 200 when the API process is alive. No auth required.
+      security: []
+      responses:
+        "200":
+          description: Service is alive
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Health" }
+
+  /api/v1/ready:
+    get:
+      operationId: getReadiness
+      tags: [health]
+      summary: Readiness probe
+      description: Returns 200 when DB and Redis answer, 503 otherwise. No auth required.
+      security: []
+      responses:
+        "200":
+          description: All dependencies ready
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Readiness" }
+        "503":
+          description: A dependency is not ready
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Readiness" }
+
+  /api/v1/resources:
+    get:
+      operationId: listResources
+      tags: [catalog]
+      summary: List resources (paginated)
+      description: Returns a paginated envelope of resources visible to the caller.
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - $ref: "#/components/parameters/Page"
+        - $ref: "#/components/parameters/PageSize"
+      responses:
+        "200":
+          description: Paginated resources
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ResourceList" }
+        "401": { $ref: "#/components/responses/AuthnRequired" }
+        "429": { $ref: "#/components/responses/RateLimited" }
+        "500": { $ref: "#/components/responses/Internal" }
+    post:
+      operationId: createResource
+      tags: [catalog]
+      summary: Create a resource
+      description: Creates a resource. Idempotent when Idempotency-Key is supplied.
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - $ref: "#/components/parameters/IdempotencyKey"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/ResourceCreate" }
+      responses:
+        "201":
+          description: Created
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Resource" }
+        "401": { $ref: "#/components/responses/AuthnRequired" }
+        "403": { $ref: "#/components/responses/AuthzDenied" }
+        "422": { $ref: "#/components/responses/ValidationFailed" }
+        "500": { $ref: "#/components/responses/Internal" }
+
+  /api/v1/resources/{resource_id}:
+    get:
+      operationId: getResource
+      tags: [catalog]
+      summary: Get a resource by id
+      description: Returns a single resource or NOT.FOUND problem.
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - $ref: "#/components/parameters/ResourceId"
+      responses:
+        "200":
+          description: The resource
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Resource" }
+        "401": { $ref: "#/components/responses/AuthnRequired" }
+        "404": { $ref: "#/components/responses/NotFound" }
+        "500": { $ref: "#/components/responses/Internal" }
+    delete:
+      operationId: deleteResource
+      tags: [catalog]
+      summary: Delete a resource (fails when locked)
+      description: Deletes a resource. Locked resources return CATALOG.RESOURCE_LOCKED (409) with no side effects.
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - $ref: "#/components/parameters/ResourceId"
+      responses:
+        "204": { description: Deleted }
+        "401": { $ref: "#/components/responses/AuthnRequired" }
+        "403": { $ref: "#/components/responses/AuthzDenied" }
+        "404": { $ref: "#/components/responses/NotFound" }
+        "409": { $ref: "#/components/responses/ResourceLocked" }
+        "500": { $ref: "#/components/responses/Internal" }
+
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+
+  parameters:
+    ResourceId:
+      name: resource_id
+      in: path
+      required: true
+      schema: { type: string, minLength: 1, maxLength: 64 }
+    Page:
+      name: page
+      in: query
+      schema: { type: integer, minimum: 1, default: 1 }
+    PageSize:
+      name: page_size
+      in: query
+      schema: { type: integer, minimum: 1, maximum: 100, default: 20 }
+    IdempotencyKey:
+      name: Idempotency-Key
+      in: header
+      schema: { type: string, minLength: 1, maxLength: 64 }
+      description: >-
+        Optional client-generated key (e.g. a UUID) that makes retries safe.
+        Scope: (authenticated principal, key) on POST /api/v1/resources; authorization
+        is checked before any lookup. Fingerprint: the request body. Only a successful
+        201 is stored, atomically with the created resource. Same scope + same body
+        replays the stored 201 response; same scope + different body is 422
+        VALIDATION.FAILED. Concurrent requests in the same scope execute once and the
+        others replay the result. Records expire after 24 hours; after that the key
+        starts a new request. Reuse one key per user intent and generate a new key for
+        a different request.
+
+  schemas:
+    Health:
+      type: object
+      required: [status, version]
+      properties:
+        status: { type: string, enum: [ok], example: ok }
+        version: { type: string, example: "1.0.0" }
+
+    Readiness:
+      type: object
+      required: [status, checks]
+      properties:
+        status: { type: string, enum: [ready, not_ready], example: ready }
+        checks:
+          type: object
+          additionalProperties: { type: string }
+          example: { database: ok, redis: ok }
+
+    Resource:
+      type: object
+      required: [id, name, locked, created_at]
+      properties:
+        id: { type: string, example: "res_01HXYZ" }
+        name: { type: string, minLength: 1, maxLength: 120, example: "Summer sheet set" }
+        locked: { type: boolean, example: false }
+        created_at: { type: string, format: date-time }
+
+    ResourceCreate:
+      type: object
+      required: [name]
+      properties:
+        name: { type: string, minLength: 1, maxLength: 120 }
+      additionalProperties: false
+
+    ResourceList:
+      type: object
+      required: [items, total, page, page_size]
+      properties:
+        items: { type: array, items: { $ref: "#/components/schemas/Resource" } }
+        total: { type: integer, minimum: 0 }
+        page: { type: integer, minimum: 1 }
+        page_size: { type: integer, minimum: 1 }
+
+    # RFC 9457 problem + project extensions (code, trace_id). blueprint 03 §4.
+    Problem:
+      type: object
+      required: [type, title, status, code]
+      properties:
+        type: { type: string, format: uri }
+        title: { type: string }
+        status: { type: integer }
+        code: { type: string, description: Stable public error code, e.g. CATALOG.RESOURCE_LOCKED }
+        detail: { type: string }
+        instance: { type: string, format: uri-reference }
+        trace_id: { type: string }
+
+  responses:
+    AuthnRequired:
+      description: Authentication required
+      content:
+        application/problem+json:
+          schema: { $ref: "#/components/schemas/Problem" }
+          example:
+            type: https://api.example.com/problems/authn/required
+            title: Authentication required
+            status: 401
+            code: AUTHN.REQUIRED
+            trace_id: f27440e5d7284c879cf7b9b39e293c41
+    AuthzDenied:
+      description: Operation not allowed
+      content:
+        application/problem+json:
+          schema: { $ref: "#/components/schemas/Problem" }
+          example:
+            type: https://api.example.com/problems/authz/denied
+            title: Operation not allowed
+            status: 403
+            code: AUTHZ.DENIED
+            trace_id: f27440e5d7284c879cf7b9b39e293c41
+    NotFound:
+      description: Resource not found
+      content:
+        application/problem+json:
+          schema: { $ref: "#/components/schemas/Problem" }
+          example:
+            type: https://api.example.com/problems/not-found
+            title: Resource not found
+            status: 404
+            code: NOT.FOUND
+            trace_id: f27440e5d7284c879cf7b9b39e293c41
+    ValidationFailed:
+      description: Request validation failed
+      content:
+        application/problem+json:
+          schema: { $ref: "#/components/schemas/Problem" }
+          example:
+            type: https://api.example.com/problems/validation-failed
+            title: Request validation failed
+            status: 422
+            code: VALIDATION.FAILED
+            detail: "name: field required"
+            trace_id: f27440e5d7284c879cf7b9b39e293c41
+    ResourceLocked:
+      description: Resource is locked
+      content:
+        application/problem+json:
+          schema: { $ref: "#/components/schemas/Problem" }
+          example:
+            type: https://api.example.com/problems/catalog/resource-locked
+            title: Resource is locked
+            status: 409
+            code: CATALOG.RESOURCE_LOCKED
+            trace_id: f27440e5d7284c879cf7b9b39e293c41
+    RateLimited:
+      description: Too many requests
+      headers:
+        Retry-After: { schema: { type: integer } }
+      content:
+        application/problem+json:
+          schema: { $ref: "#/components/schemas/Problem" }
+          example:
+            type: https://api.example.com/problems/rate-limited
+            title: Too many requests
+            status: 429
+            code: RATE.LIMITED
+            trace_id: f27440e5d7284c879cf7b9b39e293c41
+    Internal:
+      description: Internal error
+      content:
+        application/problem+json:
+          schema: { $ref: "#/components/schemas/Problem" }
+          example:
+            type: https://api.example.com/problems/internal
+            title: Internal error
+            status: 500
+            code: INTERNAL
+            trace_id: f27440e5d7284c879cf7b9b39e293c41

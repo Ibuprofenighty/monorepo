@@ -1,0 +1,30 @@
+# Few-shot 示例 1：微信小程序项目（单客户端 + wechat 身份）
+# 场景：一家床品品牌的微信小程序：商品展示 + 洗护预约
+
+project_name: sheetshow-mp
+python_package: sheetshow_backend
+ts_scope: sheetshow
+dart_package: sheetshow_api_client
+
+product_goal: 床品品牌微信小程序：商品展示、AI 试铺、洗护预约下单
+
+clients:
+  - wechat-native
+
+modules:
+  - catalog
+  - booking
+
+identity: wechat
+authz: local
+
+problem_namespace: https://api.sheetshow.example/problems
+
+deploy_target: compose
+
+capabilities:
+  - redis
+  - worker
+
+git_init: true
+owner: mengshi

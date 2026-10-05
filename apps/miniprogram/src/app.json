@@ -1,0 +1,1 @@
+{"pages":["pages/home/index","pages/resources/index"],"subpackages":[{"name":"catalog","pages":["pages/resource-detail/index"],"root":"subpackages/catalog"}],"window":{"navigationBarTitleText":"Project"}}

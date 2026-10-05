@@ -1,0 +1,47 @@
+# Dependabot: automated dependency updates (Batch D).
+# - Groups minor/patch updates to reduce PR noise
+# - Docker updates respect digest pins (D5)
+# - GitHub Actions updates must keep SHA pins (D1): review the SHA in each PR
+# - Node 24.11.1 pin (ADR 0007): dependabot does not touch setup-node inputs;
+#   the toolchain gate (check_toolchain.py) catches any drift
+version: 2
+updates:
+  # Python (uv)
+  - package-ecosystem: "pip"
+    directory: "/apps/backend"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+    groups:
+      minor-patch:
+        patterns: ["*"]
+        update-types: ["minor", "patch"]
+    labels: ["dependencies", "python"]
+
+  # Node (pnpm)
+  - package-ecosystem: "npm"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+    groups:
+      minor-patch:
+        patterns: ["*"]
+        update-types: ["minor", "patch"]
+    labels: ["dependencies", "javascript"]
+
+  # Docker base images (digest-pinned, see D5)
+  - package-ecosystem: "docker"
+    directory: "/infra/docker"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+    labels: ["dependencies", "docker"]
+
+  # GitHub Actions (must preserve SHA pins from D1)
+  - package-ecosystem: "github-actions"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+    labels: ["dependencies", "github-actions"]

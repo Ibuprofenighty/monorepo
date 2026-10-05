@@ -1,0 +1,1 @@
+{"compilerOptions":{"baseUrl":".","paths":{"@project/api-client":["../../packages/ts/api-client/src/index.ts"]},"types":["wechat-miniprogram","vitest"]},"extends":"../../tooling/typescript/tsconfig.base.json","include":["src","tests"]}

@@ -1,0 +1,17 @@
+.git/
+**/node_modules/
+**/.venv/
+**/__pycache__/
+**/.pytest_cache/
+**/.mypy_cache/
+**/.ruff_cache/
+**/.dart_tool/
+**/dist/
+**/.next/
+**/out/
+apps/mobile/build/
+.artifacts/
+.env
+.env.*
+*.log
+.DS_Store

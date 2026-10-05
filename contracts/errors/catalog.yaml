@@ -1,0 +1,10 @@
+# 公开错误注册表（catalog 域）— HAND-WRITTEN, 唯一来源
+schema_version: 1
+module: catalog
+type_namespace: https://api.example.com/problems
+errors:
+  - code: CATALOG.RESOURCE_LOCKED
+    type: https://api.example.com/problems/catalog/resource-locked
+    http_status: 409
+    title: Resource is locked
+    description: 已锁定资源不能执行当前修改操作。资源保持锁定且未变更。

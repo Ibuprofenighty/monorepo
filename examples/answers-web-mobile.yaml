@@ -1,0 +1,33 @@
+# Few-shot 示例 2：Web 管理后台 + Flutter App（双客户端）
+# 场景：内部运营后台（Web）+ 面向用户的手机 App（Flutter）
+
+project_name: sheetshow-ops
+python_package: sheetshow_ops_backend
+ts_scope: sheetshow-ops
+dart_package: sheetshow_app_client
+mobile_org: com.sheetshow.ops
+
+product_goal: 运营管理后台（Web）+ 用户端 App（Flutter）：订单、预约、客服
+
+clients:
+  - web-vite
+  - mobile-flutter
+
+modules:
+  - catalog
+  - booking
+  - support
+
+identity: keycloak
+authz: local
+
+problem_namespace: https://api.ops.sheetshow.example/problems
+
+deploy_target: compose
+
+capabilities:
+  - redis
+  - worker
+
+git_init: true
+owner: mengshi

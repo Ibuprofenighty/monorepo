@@ -1,0 +1,63 @@
+name: security
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  schedule:
+    # Weekly scan even without code changes
+    - cron: "0 6 * * 1"
+
+# Supply chain: deny by default; jobs declare what they need.
+permissions: {}
+
+jobs:
+  codeql:
+    name: CodeQL (Python + JavaScript)
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      security-events: write
+      actions: read
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - name: Initialize CodeQL
+        uses: github/codeql-action/init@87ef0dc97def48aa960fbf026a2563ee9dbdb470 # v3
+        with:
+          languages: python, javascript
+      - name: Autobuild
+        uses: github/codeql-action/autobuild@87ef0dc97def48aa960fbf026a2563ee9dbdb470 # v3
+      - name: Perform CodeQL Analysis
+        uses: github/codeql-action/analyze@87ef0dc97def48aa960fbf026a2563ee9dbdb470 # v3
+        with:
+          category: "/language:python,javascript"
+
+  semgrep:
+    name: Semgrep (Python + JS + Docker)
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      security-events: write
+      actions: read
+    container:
+      image: semgrep/semgrep:1.100.0@sha256:62c5c71d6da15096bdde79035782d30be8b89a6e2b5fb9b3228d37c3316fa9d4
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - run: semgrep --config auto --sarif --output semgrep.sarif .
+      - name: Upload SARIF
+        uses: github/codeql-action/upload-sarif@87ef0dc97def48aa960fbf026a2563ee9dbdb470 # v3
+        with:
+          sarif_file: semgrep.sarif
+
+  gitleaks:
+    name: Gitleaks (secret scanning)
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          fetch-depth: 0
+      - uses: gitleaks/gitleaks-action@dcedce43c6f43de0b836d1fe38946645c9c638dc # v2
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

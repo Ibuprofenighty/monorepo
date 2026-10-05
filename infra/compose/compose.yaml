@@ -1,0 +1,112 @@
+# Base topology (blueprint 09 §4). Overlays: compose.dev.yaml / compose.test.yaml.
+# From repo root: docker compose -f infra/compose/compose.yaml -f infra/compose/compose.dev.yaml config
+# Required in the environment or .env: POSTGRES_PASSWORD.
+# HS256 identities also require JWT_SECRET (>= 32 bytes outside dev/test).
+name: project
+
+services:
+  postgres:
+    image: postgres:16-bookworm
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-project}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD}
+      POSTGRES_DB: ${POSTGRES_DB:-project}
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER:-project}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # begin capability:redis
+  redis:
+    image: redis:7-bookworm
+    command: ["redis-server", "--appendonly", "yes"]
+    volumes:
+      - redisdata:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+  # end capability:redis
+
+  api:
+    build:
+      context: ../..
+      dockerfile: infra/docker/backend.Dockerfile
+    environment:
+      APP_ENV: ${APP_ENV:-production}
+      # begin identity:hs256
+      JWT_SECRET: ${JWT_SECRET:?set JWT_SECRET}
+      # end identity:hs256
+      # identity:env-compose
+      DATABASE_URL: postgresql+asyncpg://${POSTGRES_USER:-project}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB:-project}
+      # begin capability:redis
+      REDIS_URL: redis://redis:6379/0
+      # end capability:redis
+    depends_on:
+      postgres:
+        condition: service_healthy
+      # begin capability:redis
+      redis:
+        condition: service_healthy
+      # end capability:redis
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/api/v1/health')"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+
+  # begin capability:worker
+  worker:
+    build:
+      context: ../..
+      dockerfile: infra/docker/backend.Dockerfile
+    command: ["python", "-m", "project_backend.entrypoints.worker"]
+    # The image's HTTP healthcheck belongs to the api; arq checks its own health key in redis.
+    healthcheck:
+      test: ["CMD", "arq", "--check", "project_backend.entrypoints.worker.WorkerSettings"]
+      interval: 30s
+      timeout: 10s
+      start_period: 15s
+      retries: 3
+    environment:
+      APP_ENV: ${APP_ENV:-production}
+      # begin identity:hs256
+      JWT_SECRET: ${JWT_SECRET:?set JWT_SECRET}
+      # end identity:hs256
+      # identity:env-compose
+      DATABASE_URL: postgresql+asyncpg://${POSTGRES_USER:-project}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB:-project}
+      # begin capability:redis
+      REDIS_URL: redis://redis:6379/0
+      # end capability:redis
+    depends_on:
+      postgres:
+        condition: service_healthy
+      # begin capability:redis
+      redis:
+        condition: service_healthy
+      # end capability:redis
+  # end capability:worker
+
+  web:
+    build:
+      context: ../..
+      dockerfile: infra/docker/web.Dockerfile
+      target: runtime-static
+      args:
+        APP: ${WEB_APP:-web}
+        WEB_OUTPUT: ${WEB_OUTPUT:-dist}
+    ports:
+      - "${NGINX_PORT:-8080}:80"
+    depends_on:
+      api:
+        condition: service_healthy
+
+volumes:
+  pgdata:
+  # begin capability:redis
+  redisdata:
+  # end capability:redis

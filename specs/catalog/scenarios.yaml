@@ -1,0 +1,151 @@
+area: catalog
+source: docs/blueprint/04-BACKEND-PYTHON.md
+scenarios:
+  - id: CATALOG.DELETE.LOCKED_NO_EFFECT
+    title: 锁定资源不可删除，且删除尝试无任何副作用
+    preconditions:
+      - 存在 locked=true 的资源 res_1
+    steps:
+      - DELETE /api/v1/resources/res_1（editor 身份）
+    expect:
+      status: 409
+      problem_code: CATALOG.RESOURCE_LOCKED
+      state: res_1 仍存在且仍锁定
+      no_side_effects:
+        - res_1 未被删除
+        - 无其他资源变化
+    tests:
+      - apps/backend/tests/modules/catalog/unit/test_domain.py::test_locked_resource_is_not_deletable
+      - apps/backend/tests/modules/catalog/api/test_http.py::test_delete_locked_is_conflict
+    counterexample: remove-locked-invariant
+
+  - id: CATALOG.WRITE.DENY_BEFORE_WRITE
+    title: 无权限的写操作在任何持久化之前被拒绝
+    preconditions:
+      - authorizer 对 resource.create 返回 deny
+    steps:
+      - 'POST /api/v1/resources {"name": "nope"}'
+    expect:
+      status: 403
+      problem_code: AUTHZ.DENIED
+      no_side_effects:
+        - fake_repo 中不存在 name 为 nope 的资源
+        - 幂等存储无写入
+    tests:
+      - apps/backend/tests/security/test_authz_deny.py::test_deny_before_write_ordering
+      - apps/backend/tests/modules/catalog/api/test_http.py::test_deny_has_no_side_effect
+    counterexample: write-before-authorize
+
+  - id: CATALOG.AUTHN.FORGED_TOKEN_REJECTED
+    title: 伪造或错密钥的 token 被拒绝，不泄露失败原因
+    preconditions: []
+    steps:
+      - verify_bearer_token(verifier, "forged.token.here")
+      - verify_bearer_token(verifier, other_secret_signed_token)
+      - verify_bearer_token(verifier, None)
+    expect:
+      problem_code: AUTHN.INVALID（forged/wrong-secret），AUTHN.REQUIRED（missing）
+      no_side_effects:
+        - 不返回 Principal
+        - 错误信息不区分"签名错"与"过期"等细节
+    tests:
+      - apps/backend/tests/security/test_authn_verifier.py::test_forged_token_rejected
+      - apps/backend/tests/security/test_authn_verifier.py::test_wrong_secret_rejected
+      - apps/backend/tests/security/test_authn_verifier.py::test_missing_token_is_authn_required
+    counterexample: verifier-accepts-everything
+
+  - id: CATALOG.DELETE.UNAUTHENTICATED_401
+    title: 未携带凭证的删除返回 401 + AUTHN.REQUIRED problem
+    preconditions: []
+    steps:
+      - DELETE /api/v1/resources/res_1（无 Authorization 头）
+    expect:
+      status: 401
+      problem_code: AUTHN.REQUIRED
+    tests:
+      - apps/backend/tests/modules/catalog/api/test_http.py::test_unauthenticated_is_401
+
+  - id: CATALOG.CREATE.IDEMPOTENT_REPLAY
+    title: 同一主体、同一 Idempotency-Key、同一请求体的重试回放首次 201 结果
+    preconditions:
+      - editor 已用 key-1 成功创建 idem
+    steps:
+      - 'POST /api/v1/resources {"name": "idem"}，Idempotency-Key: key-1（同一 editor）'
+    expect:
+      status: 201
+      state: 响应体与首次完全一致
+      no_side_effects:
+        - 不新增第二条资源
+    tests:
+      - apps/backend/tests/modules/catalog/api/test_http.py::test_idempotency_key_replays
+      - tests/e2e/run.sh
+
+  - id: CATALOG.CREATE.IDEMPOTENCY_CONFLICT
+    title: 同一作用域内 key 复用但请求体不同返回 422
+    preconditions:
+      - editor 已用 key-2 创建 a
+    steps:
+      - 'POST /api/v1/resources {"name": "b"}，Idempotency-Key: key-2'
+    expect:
+      status: 422
+      problem_code: VALIDATION.FAILED
+      no_side_effects:
+        - 不创建 b
+    tests:
+      - apps/backend/tests/modules/catalog/api/test_http.py::test_idempotency_key_conflict_on_different_body
+      - tests/e2e/run.sh
+
+  - id: CATALOG.CREATE.IDEMPOTENCY_SUBJECT_SCOPE
+    title: 幂等作用域为（主体, key）；授权先于查找，他人无法借 key 读取或回放结果
+    preconditions:
+      - editor tester 已用 shared-key 创建 mine
+    steps:
+      - 另一 editor 用 shared-key 创建 theirs
+      - viewer 用 tester 的 key 与相同请求体重试
+    expect:
+      state: 另一 editor 得到独立的新资源；viewer 得到 403 AUTHZ.DENIED 且响应不含资源
+      no_side_effects:
+        - viewer 请求不写资源、不写幂等记录
+    tests:
+      - apps/backend/tests/modules/catalog/api/test_http.py::test_idempotency_key_scoped_per_subject
+      - apps/backend/tests/modules/catalog/api/test_http.py::test_idempotency_replay_requires_authorization
+      - tests/e2e/run.sh
+    counterexample: drop-idempotency-subject-scope
+
+  - id: CATALOG.CREATE.IDEMPOTENCY_CONCURRENT
+    title: 同作用域并发请求只执行一次，落败方回放胜出方结果
+    preconditions: []
+    steps:
+      - 5 个并发 POST，同一主体、同一 key、同一请求体
+    expect:
+      state: 全部返回同一资源 id，库中仅一条资源
+    tests:
+      - apps/backend/tests/modules/catalog/unit/test_create_idempotency.py::test_concurrent_same_key_loser_replays_winner
+      - apps/backend/tests/modules/catalog/integration/test_repository.py::test_concurrent_same_key_creates_once
+
+  - id: CATALOG.CREATE.IDEMPOTENCY_EXPIRY
+    title: 超过 24 小时的幂等记录不再回放，由新请求替换并由 worker 定时清理
+    preconditions:
+      - 存在 created_at 早于 24 小时的记录
+    steps:
+      - 用同一 key 发起新请求
+      - worker catalog_maintenance 执行清理
+    expect:
+      status: 201
+      state: 返回新资源，记录被新结果替换；清理只删除过期记录
+    tests:
+      - apps/backend/tests/modules/catalog/api/test_http.py::test_expired_idempotency_record_is_not_replayed
+      - apps/backend/tests/modules/catalog/unit/test_create_idempotency.py::test_purge_removes_only_expired_records
+      - apps/backend/tests/modules/catalog/integration/test_repository.py::test_idempotency_purge_removes_only_expired
+
+  - id: CATALOG.CREATE.IDEMPOTENCY_FAILURE_NOT_STORED
+    title: 失败的创建不保存幂等记录，同一 key 可修正后重试
+    preconditions:
+      - 已存在 name 为 taken 的资源
+    steps:
+      - 'POST {"name": "taken"}，Idempotency-Key: dup-key'
+      - 'POST {"name": "free"}，Idempotency-Key: dup-key'
+    expect:
+      state: 首次 422 且无幂等记录；第二次 201 创建 free
+    tests:
+      - apps/backend/tests/modules/catalog/api/test_http.py::test_failed_create_stores_no_idempotency_record

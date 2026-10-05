@@ -1,0 +1,26 @@
+# uv workspace root. Members are real Python packages (src layout).
+# TS members live in pnpm-workspace.yaml; the two workspaces are independent (blueprint 01 §3).
+[project]
+name = "project-template-tools"
+version = "2.0.0"
+requires-python = ">=3.12"
+dependencies = []
+
+[tool.uv.workspace]
+members = ["apps/backend"]
+
+[tool.ruff]
+target-version = "py312"
+line-length = 100
+# Generated contract code is byte-compared by make check-generated;
+# never reformat it.
+exclude = ["**/generated/**"]
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "UP", "B", "ASYNC"]
+
+# B008 (function call in default arg) is the documented FastAPI Depends pattern:
+# the Depends object is intentionally constructed once at def time.
+[tool.ruff.lint.per-file-ignores]
+"apps/backend/src/project_backend/**/presentation/**/*.py" = ["B008"]
+"apps/backend/src/project_backend/platform/http/deps.py" = ["B008"]

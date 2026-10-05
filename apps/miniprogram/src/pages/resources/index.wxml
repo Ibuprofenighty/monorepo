@@ -1,0 +1,10 @@
+<view class="container">
+  <view class="title">Resources</view>
+  <view wx:if="{{error}}" style="color: red;">{{error}}</view>
+  <view wx:if="{{notice}}" style="color: red;">{{notice}}</view>
+  <view wx:for="{{items}}" wx:key="id" class="row">
+    <text>{{item.name}}</text>
+    <text wx:if="{{item.locked}}"> 🔒</text>
+    <button size="mini" data-id="{{item.id}}" bindtap="onDelete">删除</button>
+  </view>
+</view>

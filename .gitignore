@@ -1,0 +1,44 @@
+# JS
+node_modules/
+dist/
+.next/
+*.local
+
+# Python
+.venv/
+__pycache__/
+*.py[cod]
+*.egg-info/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.coverage
+htmlcov/
+
+# Generated (committed by policy EXCEPT openapi bundle artifacts)
+.artifacts/
+
+# Env & secrets
+.env
+.env.*
+!.env.example
+
+# Miniprogram: build output and per-developer DevTools settings
+apps/miniprogram/dist/
+apps/miniprogram/project.private.config.json
+
+# Dart / Flutter
+.dart_tool/
+apps/mobile/build/
+# Library packages don't commit pubspec.lock; the app (apps/mobile) does.
+packages/dart/**/pubspec.lock
+.flutter-plugins
+.flutter-plugins-dependencies
+
+# Downloaded tool binaries (oasdiff). Not part of the template.
+.tools/
+
+# Misc
+.DS_Store
+.idea/
+*.log

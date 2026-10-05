@@ -1,0 +1,10 @@
+name: project_api_client
+description: Dart SDK for the Project API. Transport is injected per app.
+version: 0.1.0
+
+environment:
+  sdk: ^3.4.0
+
+dev_dependencies:
+  test: ^1.25.0
+  lints: ^4.0.0

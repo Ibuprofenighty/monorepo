@@ -1,0 +1,44 @@
+# Import-linter contract for the Python backend (blueprint 01 §8, 04 §3).
+# Executable mirror: apps/backend/tests/architecture/test_boundaries.py
+# (AST-based, no import-linter install required). Use this file when the
+# project adopts import-linter in CI.
+#
+# Usage: lint-imports --config tooling/architecture/backend.importlinter
+
+[importlinter]
+root_package = project_backend
+
+# domain: pure business rules. No tech, no framework, no infra.
+[[importlinter.contracts]]
+name = "domain has no tech imports"
+type = "forbidden"
+source_modules = ["project_backend.modules.*.domain"]
+forbidden_modules = [
+    "sqlalchemy", "fastapi", "pydantic_settings", "redis", "httpx", "arq",
+    "project_backend.modules.*.infrastructure",
+    "project_backend.modules.*.presentation",
+    "project_backend.platform",
+]
+
+# application: orchestration via ports. No infra implementations.
+[[importlinter.contracts]]
+name = "application has no infra imports"
+type = "forbidden"
+source_modules = ["project_backend.modules.*.application"]
+forbidden_modules = [
+    "sqlalchemy", "fastapi", "redis", "arq",
+    "project_backend.modules.*.infrastructure",
+]
+
+# cross-module: only through the target module's public surface.
+[[importlinter.contracts]]
+name = "cross-module only via public"
+type = "forbidden"
+source_modules = ["project_backend.modules.catalog"]
+forbidden_modules = [
+    "project_backend.modules.*.domain",
+    "project_backend.modules.*.application",
+    "project_backend.modules.*.infrastructure",
+]
+# NOTE: refine per module — the executable test test_cross_module_only_via_public
+# is the source of truth; keep both in sync.

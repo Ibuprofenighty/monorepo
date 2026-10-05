@@ -1,0 +1,30 @@
+{
+  "compileType": "miniprogram",
+  "condition": {},
+  "description": "Project miniprogram. Code root is dist/, built from src/ by scripts/miniprogram/build.mjs. Per-developer settings (e.g. urlCheck) go in project.private.config.json, which is gitignored.",
+  "editorSetting": {},
+  "libVersion": "3.4.0",
+  "miniprogramRoot": "dist/",
+  "packOptions": { "ignore": [], "include": [] },
+  "projectname": "project",
+  "setting": {
+    "checkInvalidKey": true,
+    "checkSiteMap": true,
+    "coverView": true,
+    "enhance": true,
+    "es6": true,
+    "lazyloadPlaceholderEnable": false,
+    "minified": true,
+    "newFeature": false,
+    "nodeModules": false,
+    "postcss": true,
+    "preloadBackgroundData": false,
+    "showShadowRootInWxmlPanel": true,
+    "swc": false,
+    "uploadWithSourceMap": true,
+    "useApiHook": true,
+    "useApiHostProcess": true,
+    "useIsolateContext": true,
+    "useMultiFrameRuntime": true
+  }
+}

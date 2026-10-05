@@ -1,0 +1,47 @@
+# 公开错误注册表（通用）— HAND-WRITTEN, 唯一来源
+# 格式：blueprint 03 §3。type 命名空间上线前替换为项目自有域名。
+schema_version: 1
+module: common
+type_namespace: https://api.example.com/problems
+errors:
+  - code: AUTHN.REQUIRED
+    type: https://api.example.com/problems/authn/required
+    http_status: 401
+    title: Authentication required
+    description: 请求缺少有效凭据。按认证方案返回必要的挑战头。
+
+  - code: AUTHN.INVALID
+    type: https://api.example.com/problems/authn/invalid
+    http_status: 401
+    title: Invalid credentials
+    description: 凭据无效或已过期。不泄露具体是哪一部分错了。
+
+  - code: AUTHZ.DENIED
+    type: https://api.example.com/problems/authz/denied
+    http_status: 403
+    title: Operation not allowed
+    description: 已认证主体不允许执行该操作。拒绝不产生禁止的副作用。
+
+  - code: NOT.FOUND
+    type: https://api.example.com/problems/not-found
+    http_status: 404
+    title: Resource not found
+    description: 资源不存在或不可见（含按披露策略隐藏存在性的拒绝）。
+
+  - code: VALIDATION.FAILED
+    type: https://api.example.com/problems/validation-failed
+    http_status: 422
+    title: Request validation failed
+    description: 业务层请求校验失败（区别于 400 的协议解析错误）。
+
+  - code: RATE.LIMITED
+    type: https://api.example.com/problems/rate-limited
+    http_status: 429
+    title: Too many requests
+    description: 频率超限。有界重试，遵守 Retry-After。
+
+  - code: INTERNAL
+    type: https://api.example.com/problems/internal
+    http_status: 500
+    title: Internal error
+    description: 未预期内部异常。只返回通用提示，诊断进受控日志。

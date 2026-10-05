@@ -1,0 +1,35 @@
+# Test overlay: isolated project name, database and volumes.
+# Never touches dev/prod data (blueprint 09 §4). The API is published on
+# loopback only, for tests/e2e/run.sh.
+services:
+  postgres:
+    environment:
+      POSTGRES_DB: project_test
+    volumes:
+      - pgdata_test:/var/lib/postgresql/data
+
+  # begin capability:redis
+  redis:
+    volumes:
+      - redisdata_test:/data
+  # end capability:redis
+
+  api:
+    environment:
+      DATABASE_URL: postgresql+asyncpg://${POSTGRES_USER:-project}:${POSTGRES_PASSWORD}@postgres:5432/project_test
+      APP_ENV: test
+    ports:
+      - "127.0.0.1:${E2E_API_PORT:-18000}:8000"
+
+  # begin capability:worker
+  worker:
+    environment:
+      DATABASE_URL: postgresql+asyncpg://${POSTGRES_USER:-project}:${POSTGRES_PASSWORD}@postgres:5432/project_test
+      APP_ENV: test
+  # end capability:worker
+
+volumes:
+  pgdata_test:
+  # begin capability:redis
+  redisdata_test:
+  # end capability:redis

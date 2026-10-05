@@ -1,0 +1,50 @@
+# Spectral ruleset for the hand-written contract (blueprint 02 §8).
+# Enforces the conventions the generators and tests rely on.
+extends:
+  - spectral:oas
+
+rules:
+  # Every operation must have an operationId — generators and traceability use it.
+  operation-operationId:
+    description: "Operations must define operationId"
+    given: "$.paths[*][*]"
+    then:
+      field: operationId
+      function: truthy
+    severity: error
+
+  # Every operation must document itself — the contract is the API's user manual.
+  operation-description:
+    description: "Operations must have a description"
+    given: "$.paths[*][*]"
+    then:
+      field: description
+      function: truthy
+    severity: error
+
+  # Error responses must use the shared Problem schema, never ad-hoc shapes.
+  error-response-problem-shape:
+    description: "4xx/5xx responses must reference the Problem schema"
+    given: "$.paths[*][*].responses[?(@property >= '400' && @property < '600')].content['application/problem+json'].schema"
+    then:
+      function: truthy
+    severity: error
+
+  # Tags keep the generated clients organized.
+  operation-tags:
+    description: "Operations must declare at least one tag"
+    given: "$.paths[*][*]"
+    then:
+      field: tags
+      function: truthy
+    severity: warn
+
+  # No examples with secrets in the contract source.
+  no-example-secrets:
+    description: "Examples must not look like real secrets"
+    given: "$..example"
+    then:
+      function: pattern
+      functionOptions:
+        notMatch: "[Ss][Kk]-live|[Ss]ecret|[Pp]assword\\s*[:=]"
+    severity: error
