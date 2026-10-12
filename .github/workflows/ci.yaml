@@ -19,7 +19,7 @@ jobs:
         with:
           node-version-file: .node-version
           cache: pnpm
-      - uses: astral-sh/setup-uv@bec219d24cd3e171d82865faccec33120bb574f4 # v10.1.0
+      - uses: astral-sh/setup-uv@1c37ad07a6a961277cf70c0d37d6f313000f5884 # v10.3.0
       - run: pnpm install --frozen-lockfile
       - run: uv sync --frozen --package project-backend --extra dev
       - run: make check-toolchain check-gate check-contract check-breaking check-generated check-docs check-specs
@@ -49,7 +49,7 @@ jobs:
       # end capability:redis
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
-      - uses: astral-sh/setup-uv@bec219d24cd3e171d82865faccec33120bb574f4 # v10.1.0
+      - uses: astral-sh/setup-uv@1c37ad07a6a961277cf70c0d37d6f313000f5884 # v10.3.0
       - run: uv sync --frozen --package project-backend --extra dev
       - run: make lint-py typecheck-py test-unit-py check-architecture check-counterexamples test-contract test-security
       - name: database tests
@@ -109,7 +109,7 @@ jobs:
         with:
           node-version-file: .node-version
           cache: pnpm
-      - uses: astral-sh/setup-uv@bec219d24cd3e171d82865faccec33120bb574f4 # v10.1.0
+      - uses: astral-sh/setup-uv@1c37ad07a6a961277cf70c0d37d6f313000f5884 # v10.3.0
       - run: pnpm install --frozen-lockfile
       - run: uv sync --frozen --package project-backend --extra dev
       - run: make check-generator
